@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { Alert, View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { spacing } from '../theme/spacing';
@@ -81,6 +81,7 @@ export default function PrivacyScreen({ navigation }: Props) {
               label="Dispositivos" 
               value="1" 
               valueColor={colors.primary}
+              onPress={() => Alert.alert('Dispositivos', 'Gerenciamento de dispositivos em breve.')}
             />
           </View>
 

@@ -142,6 +142,121 @@ EXPO_PUBLIC_CLOUDINARY_UPLOAD_PRESET=unsigned_preset
 EXPO_PUBLIC_CLOUDINARY_API_URL=https://api.cloudinary.com/v1_1/nome_cloud/auto/upload
 ```
 
+### Como conseguir todas as chaves do app
+Use o `.env.example` como base e preencha o `.env` da raiz do app. Nunca envie o `.env` para o GitHub; o `.gitignore` deste projeto ja ignora esse arquivo.
+
+Antes de começar, crie uma conta ou faca login nos serviços abaixo:
+
+1. [Firebase Console](https://console.firebase.google.com/) para autenticação.
+2. [Cloudinary](https://cloudinary.com/) para upload de imagens, videos, audios e arquivos.
+3. Um backend local ou publicado para preencher `EXPO_PUBLIC_CHAT_API_URL`.
+
+#### Firebase Web SDK
+Essas chaves sao publicas do app cliente e ficam com o prefixo `EXPO_PUBLIC_`.
+
+1. Acesse o [Firebase Console](https://console.firebase.google.com/).
+2. Crie uma conta Google ou faca login.
+3. Clique em **Add project** para criar um projeto, ou abra um projeto existente.
+4. No **Project Overview**, clique no icone de app Web `</>`.
+5. Digite um nome para o app, por exemplo `Vibe Mobile`.
+6. Registre o app Web.
+7. O Firebase vai mostrar um objeto `firebaseConfig`.
+8. Copie os valores desse objeto para o `.env` usando o mapeamento:
+
+```env
+EXPO_PUBLIC_FIREBASE_API_KEY=apiKey
+EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN=authDomain
+EXPO_PUBLIC_FIREBASE_PROJECT_ID=projectId
+EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET=storageBucket
+EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=messagingSenderId
+EXPO_PUBLIC_FIREBASE_APP_ID=appId
+```
+
+Se o app Web ja existir, abra **Configuracoes do projeto > Geral > Seus apps**, escolha o app Web e copie o mesmo `firebaseConfig`.
+
+#### Ativar login por e-mail e senha
+O app usa Firebase Auth, entao o provedor de login precisa estar ativo.
+
+1. No Firebase Console, abra o projeto.
+2. Vá em **Authentication**.
+3. Clique em **Get started**, se for a primeira configuracao.
+4. Abra **Sign-in method**.
+5. Clique em **Email/Password**.
+6. Ative **Email/Password** e salve.
+
+#### Criar contas de teste no Firebase
+Crie pelo menos duas contas para testar envio de mensagens entre usuarios diferentes.
+
+1. No Firebase Console, abra **Authentication**.
+2. Vá para a aba **Users**.
+3. Clique em **Add user**.
+4. Informe um e-mail e uma senha.
+5. Repita para criar outra conta.
+
+Exemplo para ambiente local:
+
+```text
+teste1@example.com / senha123456
+teste2@example.com / senha123456
+```
+
+Esses e-mails podem ser ficticios para login local. Para testar 2FA e recebimento de e-mail, use e-mails reais que voce controla.
+
+#### URL da API (`EXPO_PUBLIC_CHAT_API_URL`)
+Essa URL aponta o app mobile para o backend `chat-api_v2_tested`.
+
+1. Rode o backend com `npm run dev`.
+2. Se estiver usando emulador Android, `localhost` geralmente aponta para o proprio emulador. Use a URL publicada ou o IP correto da maquina.
+3. Se estiver usando Expo Go em um celular fisico, use o IP da sua maquina na mesma rede Wi-Fi, nao `localhost`.
+4. Descubra seu IP no Windows:
+
+```bash
+ipconfig
+```
+
+Procure o **IPv4 Address** da rede Wi-Fi.
+
+Exemplo local para Expo Go:
+
+```env
+EXPO_PUBLIC_CHAT_API_URL=http://192.168.0.10:3000/
+```
+
+Em producao, use a URL do deploy:
+
+```env
+EXPO_PUBLIC_CHAT_API_URL=https://sua-api.onrender.com/
+```
+
+#### Cloudinary (`EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME`, `EXPO_PUBLIC_CLOUDINARY_UPLOAD_PRESET`)
+1. Acesse [Cloudinary](https://cloudinary.com/).
+2. Crie uma conta ou faca login.
+3. Abra o dashboard da sua conta.
+4. Copie o **Cloud name** para:
+
+```env
+EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME=seu_cloud_name
+```
+
+5. Vá em **Settings > Upload**.
+6. Em **Upload presets**, clique para criar um preset.
+7. Para upload direto pelo app, deixe o preset como **Unsigned**.
+8. Configure uma pasta, se quiser separar uploads do app, por exemplo `vibe`.
+9. Salve o preset.
+10. Copie o nome do preset para:
+
+```env
+EXPO_PUBLIC_CLOUDINARY_UPLOAD_PRESET=seu_upload_preset
+```
+
+11. A URL de upload geralmente pode ser montada automaticamente pelo app. Se precisar informar manualmente:
+
+```env
+EXPO_PUBLIC_CLOUDINARY_API_URL=https://api.cloudinary.com/v1_1/seu_cloud_name/auto/upload
+```
+
+Para desenvolvimento mobile, preset **Unsigned** facilita upload direto do app. Para producao com regras mais fortes, considere um fluxo assinado pelo backend.
+
 ---
 
 ## 7. Como Executar o Projeto Localmente

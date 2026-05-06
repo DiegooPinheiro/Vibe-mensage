@@ -189,7 +189,7 @@ export default function SettingsScreen({ navigation }: Props) {
             iconBgColor="#64D2FF"
             label={t('settings.devices')}
             subtitle={t('settings.devicesSub')}
-            onPress={() => {}}
+            onPress={() => Alert.alert('Dispositivos', 'Gerenciamento de dispositivos em breve.')}
           />
           <SettingRow
             iconName="globe-outline"
