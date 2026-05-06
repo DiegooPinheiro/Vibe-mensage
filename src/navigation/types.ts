@@ -21,6 +21,7 @@ export type RootStackParamList = {
     name: string;
     avatar?: string | null;
     username?: string;
+    firebaseUid?: string;
     isGroup?: boolean;
   };
   Profile: { uid?: string };
@@ -29,6 +30,7 @@ export type RootStackParamList = {
     username?: string;
     name?: string;
     avatar?: string | null;
+    firebaseUid?: string;
     chatUserId?: string;
     conversationId?: string;
   };

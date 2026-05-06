@@ -1,5 +1,6 @@
 export type ChatApiUser = {
   _id: string;
+  firebaseUid?: string;
   username: string;
   nome: string;
   foto?: string;
@@ -14,9 +15,11 @@ export type ChatApiConversation = {
   groupAdmin?: string;
   unreadCount?: number;
   lastMessage?: {
+    _id?: string;
     text?: string;
     senderId?: string | ChatApiUser;
     createdAt?: string;
+    read?: boolean;
   };
   createdAt: string;
   updatedAt: string;

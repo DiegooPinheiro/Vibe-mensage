@@ -58,9 +58,10 @@ export default function MessageBubble({
   uploadProgress,
 }: MessageBubbleProps) {
   const { colors, isDark } = useTheme();
-  const { textSize, bubbleRadius } = useSettings();
+  const { textSize, bubbleRadius, dataSaverEnabled } = useSettings();
   const selectAnim = useRef(new Animated.Value(selected ? 1 : 0)).current;
   const [imageSize, setImageSize] = useState<{ width: number; height: number } | null>(null);
+  const [mediaPreviewLoaded, setMediaPreviewLoaded] = useState(false);
 
   useEffect(() => {
     Animated.spring(selectAnim, {
@@ -73,7 +74,7 @@ export default function MessageBubble({
   }, [selectAnim, selected]);
 
   useEffect(() => {
-    if (!mediaUrl || mediaType !== 'image') {
+    if (!mediaUrl || mediaType !== 'image' || (dataSaverEnabled && !isMine && !mediaPreviewLoaded)) {
       setImageSize(null);
       return;
     }
@@ -95,7 +96,11 @@ export default function MessageBubble({
     return () => {
       active = false;
     };
-  }, [mediaType, mediaUrl]);
+  }, [dataSaverEnabled, isMine, mediaPreviewLoaded, mediaType, mediaUrl]);
+
+  useEffect(() => {
+    setMediaPreviewLoaded(false);
+  }, [mediaUrl]);
   
   const time = new Date(timestamp * 1000).toLocaleTimeString([], {
     hour: '2-digit',
@@ -105,6 +110,7 @@ export default function MessageBubble({
 
   const isImage = !!mediaUrl && mediaType === 'image';
   const isVideo = !!mediaUrl && mediaType === 'video';
+  const shouldDeferMediaPreview = dataSaverEnabled && !isMine && (isImage || isVideo) && !mediaPreviewLoaded;
   const isAudio = !!mediaUrl && isAudioMedia(mediaType, fileNameFromMessage(message, mediaUrl));
   const showText = !!message?.trim();
   const metaColor = isMine
@@ -253,6 +259,10 @@ export default function MessageBubble({
               activeOpacity={0.92}
               onPress={() => {
                 if (!mediaUrl) return;
+                if (shouldDeferMediaPreview) {
+                  setMediaPreviewLoaded(true);
+                  return;
+                }
                 if (isVideo) {
                   onVideoPress?.({ uri: mediaUrl, timestamp, senderName });
                 } else {
@@ -261,13 +271,21 @@ export default function MessageBubble({
               }}
               style={[styles.imageWrap, imageFrame, { marginBottom: showText ? 0 : 0 }]}
             >
-              <Image 
-                source={{ uri: isVideo ? getVideoThumbnail(mediaUrl) : mediaUrl }} 
-                style={[styles.image, imageFrame]} 
-                resizeMode="cover" 
-              />
+              {shouldDeferMediaPreview ? (
+                <View style={[styles.deferredMedia, imageFrame]}>
+                  <MaterialCommunityIcons name={isVideo ? 'video-outline' : 'image-outline'} size={34} color="#ffffff" />
+                  <Text style={styles.deferredMediaTitle}>{isVideo ? 'Video' : 'Imagem'}</Text>
+                  <Text style={styles.deferredMediaSubtitle}>Toque para carregar</Text>
+                </View>
+              ) : (
+                <Image 
+                  source={{ uri: isVideo ? getVideoThumbnail(mediaUrl) : mediaUrl }} 
+                  style={[styles.image, imageFrame]} 
+                  resizeMode="cover" 
+                />
+              )}
               
-              {status === 'sending' && uploadProgress !== undefined ? (
+              {!shouldDeferMediaPreview && status === 'sending' && uploadProgress !== undefined ? (
                 <View style={styles.sendingMediaOverlay}>
                   <View style={styles.circularProgressWrap}>
                     <ActivityIndicator size="large" color="#ffffff" />
@@ -276,7 +294,7 @@ export default function MessageBubble({
                     </Text>
                   </View>
                 </View>
-              ) : isVideo ? (
+              ) : !shouldDeferMediaPreview && isVideo ? (
                 <View style={styles.videoOverlay}>
                   <View style={styles.playButtonCircle}>
                     <MaterialCommunityIcons name="play" size={32} color="#ffffff" style={{ marginLeft: 3 }} />
@@ -660,6 +678,24 @@ const styles = StyleSheet.create({
   },
   image: {
     width: '100%',
+  },
+  deferredMedia: {
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.35)',
+    padding: 16,
+  },
+  deferredMediaTitle: {
+    color: '#ffffff',
+    fontSize: 15,
+    fontWeight: '700',
+    marginTop: 8,
+  },
+  deferredMediaSubtitle: {
+    color: 'rgba(255,255,255,0.82)',
+    fontSize: 12,
+    marginTop: 3,
   },
   fileRow: {
     flexDirection: 'row',

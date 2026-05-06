@@ -10,6 +10,7 @@ import {
   Platform,
   Dimensions,
   Image,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
@@ -33,8 +34,16 @@ export default function ChatSettingsScreen({ navigation }: Props) {
     bubbleRadius, setBubbleRadius,
     chatListView, setChatListView,
     animationsEnabled, setAnimationsEnabled,
+    autoNightMode, setAutoNightMode,
     raiseToListen, setRaiseToListen,
+    raiseToSpeak, setRaiseToSpeak,
     pauseOnRecording, setPauseOnRecording,
+    tapNextMedia, setTapNextMedia,
+    directShare, setDirectShare,
+    showAdultContent, setShowAdultContent,
+    stickerSuggestions, setStickerSuggestions,
+    emojiSuggestions, setEmojiSuggestions,
+    reactionsEnabled, setReactionsEnabled,
     sendWithEnter, setSendWithEnter,
     distanceUnit, setDistanceUnit,
     toggleTheme,
@@ -57,6 +66,33 @@ export default function ChatSettingsScreen({ navigation }: Props) {
 
     // 1. Atualiza apenas a cor temática (balões, acentos)
     setChatThemeColor(selected.color);
+  };
+
+  const showStickerSettings = () => {
+    Alert.alert('Stickers e Emojis', 'Escolha o que deseja ajustar.', [
+      {
+        text: `${stickerSuggestions ? 'Desativar' : 'Ativar'} sugestoes de stickers`,
+        onPress: () => setStickerSuggestions(!stickerSuggestions),
+      },
+      {
+        text: `${emojiSuggestions ? 'Desativar' : 'Ativar'} sugestoes de emojis`,
+        onPress: () => setEmojiSuggestions(!emojiSuggestions),
+      },
+      {
+        text: `${reactionsEnabled ? 'Desativar' : 'Ativar'} reacoes`,
+        onPress: () => setReactionsEnabled(!reactionsEnabled),
+      },
+      { text: 'Cancelar', style: 'cancel' },
+    ]);
+  };
+
+  const chooseDistanceUnit = () => {
+    Alert.alert('Unidade de distancia', 'Escolha como mostrar distancias no app.', [
+      { text: 'Automatico', onPress: () => setDistanceUnit('automatic') },
+      { text: 'Quilometros', onPress: () => setDistanceUnit('metric') },
+      { text: 'Milhas', onPress: () => setDistanceUnit('imperial') },
+      { text: 'Cancelar', style: 'cancel' },
+    ]);
   };
 
   const renderSectionHeader = (title: string) => (
@@ -182,8 +218,9 @@ export default function ChatSettingsScreen({ navigation }: Props) {
           <PreferenceRow 
             icon="moon-outline" 
             label="Modo Noturno Automático" 
-            value={false} 
-            subtitle="Desativado"
+            value={autoNightMode} 
+            subtitle={autoNightMode ? "Ativado" : "Desativado"}
+            onToggle={setAutoNightMode}
           />
           <PreferenceRow 
             icon="play-circle-outline" 
@@ -192,30 +229,45 @@ export default function ChatSettingsScreen({ navigation }: Props) {
             subtitle="Ajuste efeitos para economizar energia"
             onToggle={setAnimationsEnabled}
           />
-          <TouchableOpacity style={styles.actionRowFull}>
+          <TouchableOpacity style={styles.actionRowFull} activeOpacity={0.75} onPress={showStickerSettings}>
              <Ionicons name="happy-outline" size={22} color={colors.textSecondary} />
              <View style={styles.actionTextWrap}>
                 <Text style={[styles.actionLabelMain, { color: colors.textPrimary }]}>Stickers e Emojis</Text>
-                <Text style={styles.actionSublabel}>Gerencie stickers, emojis e reações</Text>
+                <Text style={styles.actionSublabel}>
+                  {[
+                    stickerSuggestions ? 'Stickers' : null,
+                    emojiSuggestions ? 'Emojis' : null,
+                    reactionsEnabled ? 'Reacoes' : null,
+                  ].filter(Boolean).join(', ') || 'Tudo desativado'}
+                </Text>
              </View>
+             <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
           </TouchableOpacity>
         </View>
 
         {/* MEDIA AND SOUNDS SECTION */}
         <View style={[styles.card, { backgroundColor: colors.surface }]}>
            <Text style={[styles.sectionTitleSmall, { color: colors.primary }]}>Mídias e Sons</Text>
-           <PreferenceRow label="Toque para ver a próxima mídia" value={true} isSubtle subtitle="Toque perto da borda para navegar" />
+           <PreferenceRow label="Toque para ver a próxima mídia" value={tapNextMedia} onToggle={setTapNextMedia} isSubtle subtitle="Toque perto da borda para navegar" />
            <PreferenceRow label="Levantar Para Ouvir" value={raiseToListen} onToggle={setRaiseToListen} isSubtle subtitle="O som muda para o auricular ao levar ao ouvido" />
-           <PreferenceRow label="Levantar para Falar" value={false} isSubtle subtitle="Grava mensagens de voz ao levar o telefone ao ouvido" />
+           <PreferenceRow label="Levantar para Falar" value={raiseToSpeak} onToggle={setRaiseToSpeak} isSubtle subtitle="Grava mensagens de voz ao levar o telefone ao ouvido" />
            <PreferenceRow label="Pausar música durante a gravação" value={pauseOnRecording} onToggle={setPauseOnRecording} isSubtle subtitle="Pausa música ao iniciar gravação" />
         </View>
 
         {/* OTHER SETTINGS */}
         <View style={[styles.card, { backgroundColor: colors.surface, marginBottom: 40 }]}>
            <Text style={[styles.sectionTitleSmall, { color: colors.primary }]}>Outras Configurações</Text>
-           <PreferenceRow label="Compartilhamento Direto" value={true} isSubtle subtitle="Mostra chats recentes no menu compartilhar" />
-           <PreferenceRow label="Mostrar Conteúdo +18" value={false} isSubtle subtitle="Não ocultar mídias (+18)" />
+           <PreferenceRow label="Compartilhamento Direto" value={directShare} onToggle={setDirectShare} isSubtle subtitle="Mostra chats recentes no menu compartilhar" />
+           <PreferenceRow label="Mostrar Conteúdo +18" value={showAdultContent} onToggle={setShowAdultContent} isSubtle subtitle="Não ocultar mídias (+18)" />
            <PreferenceRow label="Enviar com Enter" value={sendWithEnter} onToggle={setSendWithEnter} isSubtle />
+           <PreferenceRow
+             label="Unidade de Distancia"
+             value={false}
+             isSubtle
+             isLink
+             valueLabel={distanceUnit === 'automatic' ? 'Automatico' : distanceUnit === 'metric' ? 'Quilometros' : 'Milhas'}
+             onPress={chooseDistanceUnit}
+           />
         </View>
         </View>
 
@@ -242,6 +294,7 @@ interface PreferenceRowProps {
   isSubtle?: boolean;
   isLink?: boolean;
   valueLabel?: string;
+  onPress?: () => void;
 }
 
 function PreferenceRow({ 
@@ -252,12 +305,14 @@ function PreferenceRow({
   onToggle, 
   isSubtle = false,
   isLink = false,
-  valueLabel = ''
+  valueLabel = '',
+  onPress,
 }: PreferenceRowProps) {
   const { colors } = useTheme();
+  const RowContainer = isLink ? TouchableOpacity : View;
   
   return (
-    <View style={styles.prefRow}>
+    <RowContainer style={styles.prefRow} activeOpacity={0.75} onPress={onPress as any}>
        <View style={styles.prefLeft}>
           {icon && <Ionicons name={icon} size={22} color={colors.textSecondary} style={styles.prefIcon} />}
           <View style={styles.prefTextWrap}>
@@ -266,7 +321,10 @@ function PreferenceRow({
           </View>
        </View>
        {isLink ? (
-         <Text style={[styles.prefValueLink, { color: colors.primary }]}>{valueLabel}</Text>
+         <View style={styles.prefLinkRight}>
+           <Text style={[styles.prefValueLink, { color: colors.primary }]}>{valueLabel}</Text>
+           <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
+         </View>
        ) : (
          <Switch 
            value={value} 
@@ -275,7 +333,7 @@ function PreferenceRow({
            trackColor={{ true: colors.primary + '80', false: '#ccc' }}
          />
        )}
-    </View>
+    </RowContainer>
   );
 }
 
@@ -444,5 +502,10 @@ const styles = StyleSheet.create({
   prefValueLink: {
     fontSize: 16,
     fontWeight: '500',
+  },
+  prefLinkRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
   }
 });

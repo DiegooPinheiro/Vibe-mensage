@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import {
+  Alert,
   View,
   Text,
   TouchableOpacity,
@@ -83,7 +84,11 @@ export default function ProfileScreen({ navigation }: Props) {
     >
       <View style={styles.topBar}>
         <View style={{ flex: 1 }} />
-        <TouchableOpacity style={styles.topBarButton}>
+        <TouchableOpacity
+          style={styles.topBarButton}
+          activeOpacity={0.75}
+          onPress={() => Alert.alert("Em breve", "O QR Code do perfil ainda está em desenvolvimento.")}
+        >
           <Ionicons name="qr-code-outline" size={22} color={colors.textPrimary} />
         </TouchableOpacity>
         <TouchableOpacity style={styles.topBarButton} onPress={() => setLocalMenuVisible(true)}>

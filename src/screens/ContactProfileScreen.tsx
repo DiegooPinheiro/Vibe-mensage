@@ -18,7 +18,7 @@ import { getUserProfile, getUserProfileByUsername } from '../services/authServic
 import { chatGetConversations, chatGetMessages, chatListUsers } from '../services/chatApi';
 import { getChatSession } from '../services/chatSession';
 import type { ChatApiMessage, ChatApiUser } from '../types/chatApi';
-import useOnlineStatus from '../hooks/useOnlineStatus';
+import useOnlineStatusByIdentity from '../hooks/useOnlineStatusByIdentity';
 import Avatar from '../components/Avatar';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { UserProfile } from '../types/user';
@@ -74,6 +74,7 @@ export default function ContactProfileScreen({ navigation, route }: Props) {
   const routeUsername = route.params?.username || '';
   const routeName = route.params?.name || '';
   const routeAvatar = route.params?.avatar || null;
+  const routeFirebaseUid = route.params?.firebaseUid || null;
   const routeChatUserId = route.params?.chatUserId || null;
   const routeConversationId = route.params?.conversationId || null;
 
@@ -84,7 +85,10 @@ export default function ContactProfileScreen({ navigation, route }: Props) {
   const [sharedItems, setSharedItems] = useState<SharedItem[]>([]);
   const [sharedLoading, setSharedLoading] = useState(false);
   const [resolvedConversationId, setResolvedConversationId] = useState<string | null>(routeConversationId);
-  const { statusText } = useOnlineStatus(profile?.uid || routeUid || '');
+  const { statusText, online } = useOnlineStatusByIdentity({
+    uid: profile?.firebaseUid || profile?.uid || routeFirebaseUid || routeUid,
+    email: profile?.email || routeUsername,
+  });
 
   React.useLayoutEffect(() => {
     navigation.setOptions({
@@ -113,6 +117,7 @@ export default function ContactProfileScreen({ navigation, route }: Props) {
         ? {
             _id: routeChatUserId,
             username: profileData?.username || routeUsername || '',
+            firebaseUid: profileData?.firebaseUid || routeFirebaseUid || undefined,
             nome: profileData?.displayName || routeName || routeUsername || 'Contato',
             foto: profileData?.photoURL || routeAvatar || undefined,
           }
@@ -237,7 +242,7 @@ export default function ContactProfileScreen({ navigation, route }: Props) {
 
       <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 100 }]}>
         <View style={styles.profileHeader}>
-          <Avatar uri={profilePhoto} name={displayName} size={90} online={false} />
+          <Avatar uri={profilePhoto} name={displayName} size={90} online={online} />
           <Text style={[styles.name, { color: colors.textPrimary }]}>{displayName}</Text>
           <Text style={[styles.status, { color: colors.textSecondary }]}>
             {statusText || 'visto recentemente'}

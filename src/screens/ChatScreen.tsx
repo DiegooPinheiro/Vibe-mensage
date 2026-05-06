@@ -38,7 +38,7 @@ import EmojiPickerPanel, { DEFAULT_EMOJI_PANEL_HEIGHT } from '../components/Emoj
 import LoadingSpinner from '../components/LoadingSpinner';
 import Avatar from '../components/Avatar';
 import useTheme from '../hooks/useTheme';
-import useOnlineStatusByEmail from '../hooks/useOnlineStatusByEmail';
+import useOnlineStatusByIdentity from '../hooks/useOnlineStatusByIdentity';
 import {
   chatCreateConversation,
   chatDeleteConversation,
@@ -49,6 +49,7 @@ import {
 } from '../services/chatApi';
 import { getChatSession } from '../services/chatSession';
 import { getCachedMessages, setCachedMessages } from '../services/messageCache';
+import { ensureAppCacheDirectory } from '../services/appFileCache';
 import { cloudinaryUpload } from '../services/cloudinaryService';
 import { EmptyChatState } from '../components/EmptyChatState';
 import { WallpaperPicker } from '../components/WallpaperPicker';
@@ -95,6 +96,7 @@ type ActiveAudio = {
 const ATTACH_SHEET_CLOSE_THRESHOLD = 92;
 const ATTACH_SHEET_CLOSE_DISTANCE = Math.round(Dimensions.get('window').height * 0.42);
 const ATTACH_SHEET_OPEN_OFFSET = 42;
+const keyboardEaseOut = (value: number) => 1 - Math.pow(1 - value, 3);
 
 const CustomVideoPlayer = ({ viewerVideo, onClose, insets, name }: any) => {
   const [status, setStatus] = useState<AVPlaybackStatusSuccess | null>(null);
@@ -197,6 +199,7 @@ export default function ChatScreen({ navigation, route }: Props) {
     name, 
     avatar, 
     username,
+    firebaseUid,
     isGroup: initialIsGroup 
   } = route.params;
 
@@ -244,11 +247,16 @@ export default function ChatScreen({ navigation, route }: Props) {
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editingMessagePreview, setEditingMessagePreview] = useState('');
   const editingBarAnim = useRef(new Animated.Value(0)).current;
+  const keyboardSpacerAnim = useRef(new Animated.Value(0)).current;
   const attachSheetTranslateY = useRef(new Animated.Value(ATTACH_SHEET_CLOSE_DISTANCE)).current;
   const attachSheetBackdropOpacity = useRef(new Animated.Value(0)).current;
   const scrollY = useRef(new Animated.Value(0)).current;
 
-  const { statusText, online } = useOnlineStatusByEmail(username || '', !!username);
+  const { statusText, online } = useOnlineStatusByIdentity({
+    uid: firebaseUid,
+    email: username,
+    enabled: !initialIsGroup && (!!firebaseUid || !!username),
+  });
   const selectionMode = selectedMessageIds.length > 0;
   const selectedEditableMessage =
     selectedMessageIds.length === 1
@@ -389,6 +397,7 @@ export default function ChatScreen({ navigation, route }: Props) {
                   username,
                   name,
                   avatar,
+                  firebaseUid,
                   chatUserId: receiverId,
                   conversationId: conversationId || undefined,
                 });
@@ -504,25 +513,42 @@ export default function ChatScreen({ navigation, route }: Props) {
       return;
     }
 
+    const animateKeyboardSpacer = (toValue: number, duration = 260) => {
+      Animated.timing(keyboardSpacerAnim, {
+        toValue,
+        duration,
+        easing: keyboardEaseOut,
+        useNativeDriver: false,
+      }).start();
+    };
+
     const showSub = Keyboard.addListener('keyboardDidShow', (event) => {
       const h = event.endCoordinates?.height ?? 0;
+      const duration = Math.max(220, Math.min(event.duration || 280, 420));
+      Keyboard.scheduleLayoutAnimation?.(event);
+      LayoutAnimation.configureNext(keyboardLayoutAnimation(duration));
       setKeyboardHeight(h);
       if (h > 0) setLastKeyboardHeight(h);
+      animateKeyboardSpacer(h, duration);
       setKeyboardOpening(false);
       if (keyboardOpeningTimeoutRef.current) {
         clearTimeout(keyboardOpeningTimeoutRef.current);
         keyboardOpeningTimeoutRef.current = null;
       }
     });
-    const hideSub = Keyboard.addListener('keyboardDidHide', () => {
+    const hideSub = Keyboard.addListener('keyboardDidHide', (event) => {
+      const duration = Math.max(200, Math.min(event.duration || 240, 360));
+      Keyboard.scheduleLayoutAnimation?.(event);
+      LayoutAnimation.configureNext(keyboardLayoutAnimation(duration));
       setKeyboardHeight(0);
+      animateKeyboardSpacer(0, duration);
     });
 
     return () => {
       showSub.remove();
       hideSub.remove();
     };
-  }, []);
+  }, [keyboardSpacerAnim]);
 
   useEffect(() => {
     let active = true;
@@ -1024,7 +1050,7 @@ export default function ChatScreen({ navigation, route }: Props) {
           return;
         }
 
-        const cacheDir = FileSystem.cacheDirectory;
+        const cacheDir = await ensureAppCacheDirectory();
         if (!cacheDir) {
           throw new Error('Armazenamento temporÃ¡rio indisponÃ­vel.');
         }
@@ -1537,6 +1563,12 @@ export default function ChatScreen({ navigation, route }: Props) {
       : keyboardOpening
         ? (lastKeyboardHeight || DEFAULT_EMOJI_PANEL_HEIGHT)
       : 0;
+  const animatedKeyboardSpacerHeight = keyboardHeight > 0
+    ? Animated.add(keyboardSpacerAnim, new Animated.Value(searchLift))
+    : keyboardSpacerAnim;
+  const bottomSpacerStyle = emojiOpen || keyboardOpening
+    ? { height: reservedBottomHeight }
+    : { height: animatedKeyboardSpacerHeight };
 
   const renderWallpaper = () => {
     if (wallpaper.type === 'color' || wallpaper.type === 'pattern') {
@@ -1708,7 +1740,7 @@ export default function ChatScreen({ navigation, route }: Props) {
             }}
           />
 
-          <View style={{ height: reservedBottomHeight }}>
+          <Animated.View style={bottomSpacerStyle}>
             {emojiOpen ? (
               <EmojiPickerPanel
                 visible
@@ -1720,7 +1752,7 @@ export default function ChatScreen({ navigation, route }: Props) {
                 onSelectEmoji={(emoji) => messageInputRef.current?.appendText?.(emoji)}
               />
             ) : null}
-          </View>
+          </Animated.View>
         </KeyboardAvoidingView>
       ) : (
         <View style={styles.flex}>
@@ -1854,7 +1886,7 @@ export default function ChatScreen({ navigation, route }: Props) {
             }}
           />
 
-          <View style={{ height: reservedBottomHeight }}>
+          <Animated.View style={bottomSpacerStyle}>
             {emojiOpen ? (
               <EmojiPickerPanel
                 visible
@@ -1866,7 +1898,7 @@ export default function ChatScreen({ navigation, route }: Props) {
                 onSelectEmoji={(emoji) => messageInputRef.current?.appendText?.(emoji)}
               />
             ) : null}
-          </View>
+          </Animated.View>
         </View>
       )}
 
@@ -2210,6 +2242,22 @@ const extractUserId = (value: string | ChatApiUser | any): string | null => {
   if (typeof value === 'object' && value._id) return String(value._id);
   return null;
 };
+
+const keyboardLayoutAnimation = (duration: number) => ({
+  duration,
+  update: {
+    type: LayoutAnimation.Types.easeInEaseOut,
+    property: LayoutAnimation.Properties.opacity,
+  },
+  create: {
+    type: LayoutAnimation.Types.easeInEaseOut,
+    property: LayoutAnimation.Properties.opacity,
+  },
+  delete: {
+    type: LayoutAnimation.Types.easeInEaseOut,
+    property: LayoutAnimation.Properties.opacity,
+  },
+});
 
 const extractUserName = (value: string | ChatApiUser | any): string | null => {
   if (!value) return null;

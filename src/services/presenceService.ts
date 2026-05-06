@@ -1,5 +1,5 @@
 import { AppState, type AppStateStatus } from 'react-native';
-import { doc, setDoc } from 'firebase/firestore';
+import { doc, writeBatch } from 'firebase/firestore';
 import { auth, db } from '../config/firebaseConfig';
 import { getCurrentUserProfile } from './authService';
 
@@ -10,13 +10,21 @@ const setPresence = async (online: boolean) => {
   try {
     const profile = await getCurrentUserProfile();
     const profileUid = profile?.uid || user.uid;
-
-    await setDoc(doc(db, 'users', profileUid), {
+    const email = String(profile?.email || user.email || '').trim().toLowerCase();
+    const presencePayload = {
       uid: user.uid,
       firebaseUid: user.uid,
+      ...(email ? { email } : {}),
       online,
       lastSeen: new Date().toISOString(),
-    }, { merge: true });
+    };
+
+    const batch = writeBatch(db);
+    batch.set(doc(db, 'users', profileUid), presencePayload, { merge: true });
+    if (profileUid !== user.uid) {
+      batch.set(doc(db, 'users', user.uid), presencePayload, { merge: true });
+    }
+    await batch.commit();
   } catch (error) {
     console.warn('[Presence] Falha ao atualizar presença:', error);
   }

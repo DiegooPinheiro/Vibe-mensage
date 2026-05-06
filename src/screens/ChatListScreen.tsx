@@ -9,14 +9,15 @@ import { spacing } from '../theme/spacing';
 import ChatListItem from '../components/ChatListItem';
 import LoadingSpinner from '../components/LoadingSpinner';
 import useTheme from '../hooks/useTheme';
-import { chatDeleteConversation, chatGetConversations } from '../services/chatApi';
+import { chatDeleteConversation, chatGetConversations, chatGetMessages } from '../services/chatApi';
 import { getChatSession } from '../services/chatSession';
-import { onMessagesDeleted, onMessageUpdated, onReceiveMessage } from '../services/chatSocket';
+import { onMessagesDeleted, onMessageUpdated, onMessagesRead, onReceiveMessage } from '../services/chatSocket';
 import { CACHE_KEYS, loadCache, saveCache } from '../services/persistentCache';
 import { useSettings } from '../context/SettingsContext';
 import type { ChatApiConversation, ChatApiUser } from '../types/chatApi';
 import useAuth from '../hooks/useAuth';
 import { ensureChatSessionForCurrentUser } from '../services/authService';
+import useOnlineStatusByIdentity from '../hooks/useOnlineStatusByIdentity';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ChatList'>;
 
@@ -68,12 +69,13 @@ export default function ChatListScreen({ navigation }: Props) {
 
       // Fetch fresh data in the background
       const fetched = await chatGetConversations(resolvedSession.userId);
+      const fetchedWithReadReceipts = await hydrateOutgoingReadReceipts(fetched, resolvedSession.userId);
       setConversations((prev) => {
         // If data is exact same length and first item matches, maybe skip?
         // Actually, just set it and overwrite cache
-        return fetched;
+        return fetchedWithReadReceipts;
       });
-      await saveCache(cacheKey, fetched);
+      await saveCache(cacheKey, fetchedWithReadReceipts);
 
     } catch (error: any) {
       console.error('[ChatListScreen] Erro ao carregar conversas:', error);
@@ -112,7 +114,13 @@ export default function ChatListScreen({ navigation }: Props) {
         }
         const updated = {
           ...prev[idx],
-          lastMessage: msg,
+          lastMessage: {
+            _id: msg?._id,
+            text: msg?.text,
+            senderId: msg?.senderId,
+            createdAt: msg?.createdAt,
+            read: !!msg?.read,
+          },
           updatedAt: msg.createdAt || new Date().toISOString(),
           unreadCount: (prev[idx].unreadCount || 0) + (typeof msg?.senderId === 'string' && msg.senderId !== myUserIdRef.current ? 1 : 0),
         };
@@ -121,11 +129,49 @@ export default function ChatListScreen({ navigation }: Props) {
       });
     });
 
+    const unsubRead = onMessagesRead((payload: any) => {
+      const conversationId = String(payload?.conversationId || '');
+      const readMessageIds = Array.isArray(payload?.messageIds)
+        ? payload.messageIds.map((id: any) => String(id))
+        : [];
+
+      if (!conversationId) return;
+
+      setConversations((prev) =>
+        prev.map((conversation) => {
+          if (conversation._id !== conversationId) return conversation;
+
+          const lastMessageId = conversation.lastMessage?._id ? String(conversation.lastMessage._id) : null;
+          const payloadLastMessageId = payload?.lastMessage?._id ? String(payload.lastMessage._id) : null;
+          const lastMessageSenderId = extractParticipantId(conversation.lastMessage?.senderId);
+          const isMyLastMessage = !!myUserIdRef.current && lastMessageSenderId === myUserIdRef.current;
+          const shouldMarkLastMessageRead =
+            !!payload?.read &&
+            (
+              (!!lastMessageId && readMessageIds.includes(lastMessageId)) ||
+              (!!lastMessageId && payloadLastMessageId === lastMessageId) ||
+              isMyLastMessage
+            );
+
+          if (!shouldMarkLastMessageRead) return conversation;
+
+          return {
+            ...conversation,
+            lastMessage: {
+              ...conversation.lastMessage,
+              read: true,
+            },
+          };
+        })
+      );
+    });
+
     const unsubDeleted = onMessagesDeleted(() => loadConversations(true));
     const unsubUpdated = onMessageUpdated(() => loadConversations(true));
 
     return () => {
       unsubReceive?.();
+      unsubRead?.();
       unsubDeleted?.();
       unsubUpdated?.();
     };
@@ -156,22 +202,24 @@ export default function ChatListScreen({ navigation }: Props) {
       const lastMessageText = item.lastMessage?.text ? String(item.lastMessage.text) : '';
       const lastMessageSenderId = extractParticipantId(item.lastMessage?.senderId);
       const isOutgoing = !!myUserId && !!lastMessageSenderId && lastMessageSenderId === myUserId;
+      const outgoingRead = isOutgoing && !!item.lastMessage?.read;
       const unreadCount = Number(item.unreadCount || 0);
       const timestamp = item.lastMessage?.createdAt
         ? Math.floor(new Date(item.lastMessage.createdAt).getTime() / 1000)
         : Math.floor(new Date(item.updatedAt).getTime() / 1000);
 
       return (
-        <ChatListItem
+        <ConversationListRow
           id={item._id}
           name={name}
           lastMessage={lastMessageText || 'Toque para abrir'}
           timestamp={timestamp}
           unreadCount={unreadCount}
           isOutgoing={isOutgoing}
-          outgoingRead={false}
+          outgoingRead={outgoingRead}
           avatar={avatar}
-          online={false}
+          isGroup={isGroup}
+          other={other}
           onPress={() => {
             if (!isGroup && !other?._id) {
               Alert.alert('Erro', 'Participante inválido nesta conversa.');
@@ -184,6 +232,7 @@ export default function ChatListScreen({ navigation }: Props) {
               name,
               avatar,
               username: other?.username,
+              firebaseUid: other?.firebaseUid,
               isGroup,
             });
           }}
@@ -344,6 +393,111 @@ const extractParticipantId = (value: string | ChatApiUser | undefined): string |
   if (typeof value === 'object' && value._id) return String(value._id);
   return null;
 };
+
+const hydrateOutgoingReadReceipts = async (
+  conversations: ChatApiConversation[],
+  myUserId: string
+): Promise<ChatApiConversation[]> => {
+  const candidates = conversations
+    .filter((conversation) => {
+      const lastMessage = conversation.lastMessage;
+      return (
+        !!lastMessage?._id &&
+        !lastMessage.read &&
+        extractParticipantId(lastMessage.senderId) === myUserId
+      );
+    })
+    .slice(0, 12);
+
+  if (candidates.length === 0) {
+    return conversations;
+  }
+
+  const readByConversation = new Map<string, boolean>();
+
+  await Promise.all(
+    candidates.map(async (conversation) => {
+      try {
+        const messages = await chatGetMessages(conversation._id);
+        const lastMessageId = String(conversation.lastMessage?._id || '');
+        const lastMessage = messages.find((message) => String(message._id) === lastMessageId);
+        if (lastMessage?.read) {
+          readByConversation.set(conversation._id, true);
+        }
+      } catch (error) {
+        console.warn('[ChatListScreen] Nao foi possivel conferir visto da conversa:', conversation._id, error);
+      }
+    })
+  );
+
+  if (readByConversation.size === 0) {
+    return conversations;
+  }
+
+  return conversations.map((conversation) => {
+    if (!readByConversation.get(conversation._id)) {
+      return conversation;
+    }
+
+    return {
+      ...conversation,
+      lastMessage: {
+        ...conversation.lastMessage,
+        read: true,
+      },
+    };
+  });
+};
+
+function ConversationListRow({
+  id,
+  name,
+  lastMessage,
+  timestamp,
+  unreadCount,
+  isOutgoing,
+  outgoingRead,
+  avatar,
+  isGroup,
+  other,
+  onPress,
+  onLongPress,
+}: {
+  id: string;
+  name: string;
+  lastMessage: string;
+  timestamp: number;
+  unreadCount: number;
+  isOutgoing: boolean;
+  outgoingRead: boolean;
+  avatar: string | null;
+  isGroup: boolean;
+  other: ChatApiUser | null;
+  onPress: () => void;
+  onLongPress: () => void;
+}) {
+  const { online } = useOnlineStatusByIdentity({
+    uid: other?.firebaseUid,
+    email: other?.username,
+    enabled: !isGroup && (!!other?.firebaseUid || !!other?.username),
+  });
+
+  return (
+    <ChatListItem
+      id={id}
+      name={name}
+      lastMessage={lastMessage}
+      timestamp={timestamp}
+      unreadCount={unreadCount}
+      isOutgoing={isOutgoing}
+      outgoingRead={outgoingRead}
+      avatar={avatar}
+      online={online}
+      onPress={onPress}
+      onLongPress={onLongPress}
+    />
+  );
+}
 
 const styles = StyleSheet.create({
   container: {

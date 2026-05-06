@@ -22,6 +22,7 @@ import {
   where,
   getDocs,
   deleteDoc,
+  writeBatch,
 } from 'firebase/firestore';
 import { auth, db } from '../config/firebaseConfig';
 import { UserProfile } from '../types/user';
@@ -187,12 +188,19 @@ export const signIn = async (email: string, password: string) => {
   const profile = await resolveUserProfileForFirebaseUid(user.uid);
   const profileUid = profile?.uid || user.uid;
 
-  await setDoc(doc(db, 'users', profileUid), {
+  const signInPresence = {
     uid: user.uid,
     firebaseUid: user.uid,
+    email: String(user.email || email || '').trim().toLowerCase(),
     online: true,
     lastSeen: new Date().toISOString(),
-  }, { merge: true });
+  };
+  const signInBatch = writeBatch(db);
+  signInBatch.set(doc(db, 'users', profileUid), signInPresence, { merge: true });
+  if (profileUid !== user.uid) {
+    signInBatch.set(doc(db, 'users', user.uid), signInPresence, { merge: true });
+  }
+  await signInBatch.commit();
 
   try {
     return await syncChatUserFromFirebase(email, user.uid);
@@ -218,11 +226,17 @@ export const signOut = async () => {
   if (user) {
     const profile = await getCurrentUserProfile();
     const profileUid = profile?.uid || user.uid;
-
-    await updateDoc(doc(db, 'users', profileUid), {
+    const offlinePresence = {
       online: false,
       lastSeen: new Date().toISOString(),
-    });
+    };
+
+    const signOutBatch = writeBatch(db);
+    signOutBatch.set(doc(db, 'users', profileUid), offlinePresence, { merge: true });
+    if (profileUid !== user.uid) {
+      signOutBatch.set(doc(db, 'users', user.uid), offlinePresence, { merge: true });
+    }
+    await signOutBatch.commit();
   }
 
   await chatRegisterPushToken('LOGGED_OUT_TOKEN').catch(() => {});

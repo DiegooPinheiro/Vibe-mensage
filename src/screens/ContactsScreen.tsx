@@ -23,6 +23,7 @@ import { chatListUsers, chatSyncContacts } from '../services/chatApi';
 import { getChatSession } from '../services/chatSession';
 import { CACHE_KEYS, loadCache, saveCache } from '../services/persistentCache';
 import type { ChatApiUser } from '../types/chatApi';
+import useOnlineStatusByIdentity from '../hooks/useOnlineStatusByIdentity';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Contacts'>;
 
@@ -208,6 +209,7 @@ export default function ContactsScreen({ navigation }: Props) {
       name: user.nome || user.username,
       avatar: user.foto || null,
       username: user.username,
+      firebaseUid: user.firebaseUid,
     });
   };
 
@@ -349,8 +351,6 @@ export default function ContactsScreen({ navigation }: Props) {
           }
           renderItem={({ item, index, section }) => {
             const displayName = item.nome || item.username;
-            const subtitle = 'visto recentemente';
-
             return (
               <View style={[styles.contactRowWrap, { backgroundColor: colors.surface }]}>
                 {index === 0 ? (
@@ -360,15 +360,7 @@ export default function ContactsScreen({ navigation }: Props) {
                 ) : (
                   <View style={styles.sideLetterWrap} />
                 )}
-                <TouchableOpacity style={styles.contactRow} activeOpacity={0.75} onPress={() => startChat(item)}>
-                  <Avatar uri={item.foto || null} name={displayName} size={42} online={false} />
-                  <View style={styles.contactInfo}>
-                    <Text style={[styles.contactName, { color: colors.textPrimary }]}>{displayName}</Text>
-                    <Text style={[styles.contactStatus, { color: colors.textSecondary }]} numberOfLines={1}>
-                      {subtitle}
-                    </Text>
-                  </View>
-                </TouchableOpacity>
+                <ContactPresenceRow user={item} displayName={displayName} onPress={() => startChat(item)} />
               </View>
             );
           }}
@@ -397,6 +389,35 @@ export default function ContactsScreen({ navigation }: Props) {
         onSave={handleSaveContact}
       />
     </SafeAreaView>
+  );
+}
+
+function ContactPresenceRow({
+  user,
+  displayName,
+  onPress,
+}: {
+  user: ChatApiUser;
+  displayName: string;
+  onPress: () => void;
+}) {
+  const { colors } = useTheme();
+  const { online, statusText } = useOnlineStatusByIdentity({
+    uid: user.firebaseUid,
+    email: user.username,
+    enabled: !!user.firebaseUid || !!user.username,
+  });
+
+  return (
+    <TouchableOpacity style={styles.contactRow} activeOpacity={0.75} onPress={onPress}>
+      <Avatar uri={user.foto || null} name={displayName} size={42} online={online} />
+      <View style={styles.contactInfo}>
+        <Text style={[styles.contactName, { color: colors.textPrimary }]}>{displayName}</Text>
+        <Text style={[styles.contactStatus, { color: colors.textSecondary }]} numberOfLines={1}>
+          {statusText}
+        </Text>
+      </View>
+    </TouchableOpacity>
   );
 }
 

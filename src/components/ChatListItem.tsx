@@ -35,6 +35,12 @@ export default function ChatListItem({
   selected = false,
 }: ChatListItemProps) {
   const { colors, isDark } = useTheme();
+  const metaColor = unreadCount > 0
+    ? (isDark ? '#6ab7ff' : colors.primary)
+    : (isDark ? '#aeb7be' : colors.textSecondary);
+  const checkColor = outgoingRead
+    ? (isDark ? '#53bdeb' : colors.primary)
+    : (isDark ? '#aeb7be' : colors.textSecondary);
 
   return (
     <TouchableOpacity
@@ -56,14 +62,14 @@ export default function ChatListItem({
                 <Ionicons
                   name={outgoingRead ? "checkmark-done" : "checkmark"}
                   size={16}
-                  color={outgoingRead ? (isDark ? '#40a7e3' : colors.primary) : colors.textSecondary}
+                  color={checkColor}
                   style={styles.checkIcon}
                 />
               )}
               <Text
                 style={[
                   styles.time,
-                  { color: unreadCount > 0 ? colors.primary : colors.textSecondary },
+                  { color: metaColor },
                 ]}
               >
                 {formatChatDate(timestamp)}
@@ -124,9 +130,12 @@ const styles = StyleSheet.create({
   timeContainer: {
     flexDirection: 'row',
     alignItems: 'center',
+    minWidth: 58,
+    justifyContent: 'flex-end',
   },
   time: {
     fontSize: 13,
+    fontWeight: '500',
   },
   checkIcon: {
     marginRight: 2,

@@ -9,6 +9,7 @@ type MessagesReadPayload = {
   readerId: string;
   messageIds: string[];
   read: boolean;
+  lastMessage?: any;
 };
 type MessagesReadHandler = (payload: MessagesReadPayload | any) => void;
 type MessagesDeletedPayload = {

@@ -428,7 +428,7 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
     paddingHorizontal: 10,
     paddingTop: 2,
-    paddingBottom: 5,
+    paddingBottom: 9,
     backgroundColor: 'transparent',
   },
   inputWrap: {
